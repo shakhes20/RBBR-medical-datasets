@@ -10,13 +10,13 @@ Each dataset was obtained from its respective public source and used for academi
 research purposes. No raw patient-identifiable data is redistributed in this
 repository beyond what the original source already makes public.
 
-| # | Dataset | Source | N (paper) | Features | Classes | |
+| # | Dataset | Source | N (paper) | Features | Classes | Auto-downloaded? |
 |---|---|---|---|---|---|---|
-| 1 | Lung Cancer Prediction | Kaggle | 59 | 4 | 2 | |
-| 2 | Three-level Lung Cancer | Kaggle | 1000 | 23 | 3 |  |
-| 3 | Wisconsin Breast Cancer | UCI | 699 | 9 | 2 | Y |
-| 4 | Diagnostic Breast Cancer | UCI | 569 | 30 | 2 |  |
-| 5 | Heart Failure Prediction | Kaggle | 746* | 11 | 2 |  |
+| 1 | Lung Cancer Prediction | Kaggle | 59 | 4 | 2 | No — manual |
+| 2 | Three-level Lung Cancer | Kaggle | 1000 | 23 | 3 | No — manual |
+| 3 | Wisconsin Breast Cancer | UCI | 699 | 9 | 2 | Yes |
+| 4 | Diagnostic Breast Cancer | UCI | 569 | 30 | 2 | Yes |
+| 5 | Heart Failure Prediction | Kaggle | 746* | 11 | 2 | No — manual |
 | 6 | Early Stage Diabetes Risk | UCI | 520 | 16 | 2 | Yes |
 
 \* Paper reports 746 records "after data preparation" from the raw 918-record
