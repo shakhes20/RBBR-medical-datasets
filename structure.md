@@ -10,7 +10,9 @@ RBBR-medical-datasets/
 ├── data/
 │   ├── data_sources.md              links, sample/feature counts, and license terms for all 6 datasets
 │   └── raw/
-│       └── README.md                raw CSVs are not bundled (license caveats vary by dataset) -- place downloaded files here
+│       ├── README.md                which raw files are bundled vs. must be downloaded
+│       ├── lung_cancer_examples.csv         bundled (n=59; binary example)
+│       └── cancer_patient_data_sets.csv     bundled (n=1000; three-level example)
 │
 ├── scripts/                         reusable single-dataset pipeline template (config-driven, relative paths)
 │   ├── 01_preprocessing.R           clean + RBBR::rbbr_scaling() one raw dataset -> a model-ready CSV

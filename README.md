@@ -54,10 +54,14 @@ descriptions, license terms for each):
 5. **Heart Failure Prediction** (Kaggle) — 746 samples (after preparation), 11 features, binary
 6. **Early Stage Diabetes Risk** (UCI) — 520 samples, 16 features, binary
 
-Raw data is **not bundled** in this repo — license terms vary by dataset
-(some UCI sets are CC BY 4.0; Kaggle sets require checking the source page).
-Download each dataset from the links in `data/data_sources.md` and place it
-in `data/raw/` before running any script.
+The two datasets used in the worked `examples/` (#1 and #2 above) are
+**bundled directly in this repo** at `data/raw/` — no download needed to
+run either example. The remaining four datasets (#3–#6, used by the
+generic `scripts/` template) are **not bundled** — license terms vary by
+dataset (some UCI sets are CC BY 4.0; Kaggle sets require checking the
+source page). Download those from the links in `data/data_sources.md` and
+place them in `data/raw/` before running `scripts/01_preprocessing.R`
+against them.
 
 ## Contents
 
