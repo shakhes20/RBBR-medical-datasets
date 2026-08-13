@@ -3,7 +3,8 @@
 #
 # Purpose:
 #   Load a raw medical dataset, clean it (missing values, categorical
-#   encoding, outlier-robust rescaling to [0,1]) and write out a
+#   encoding), reorder columns so the target is last, and rescale
+#   predictors to [0,1] via RBBR::rbbr_scaling() -- producing a
 #   model-ready dataset for RBBR (Boolean Rule-aware Regression).
 #
 # Usage:
@@ -32,11 +33,6 @@ target_col <- "Result"
 # column is left untouched (numeric) rather than being coerced to 0/1.
 target_is_binary <- TRUE
 
-# Upper quantile used for outlier-robust rescaling of numeric predictors
-# (values above this quantile are capped at 1). 0.975 matches the
-# convention used across the RBBR-medical-datasets analyses.
-outlier_quantile <- 0.975
-
 # How to handle missing values: "omit" (drop rows with any NA) or
 # "median" (impute numeric columns with the column median)
 missing_value_strategy <- "omit"
@@ -46,13 +42,22 @@ missing_value_strategy <- "omit"
 ## ------------------------------------------------------------------------
 
 if (!requireNamespace("readr", quietly = TRUE)) install.packages("readr")
+if (!requireNamespace("RBBR", quietly = TRUE)) install.packages("RBBR")
 
 suppressPackageStartupMessages({
   library(readr)
+  library(RBBR)
 })
 
 # Ensure output directory exists (created relative to repo root)
-dir.create(dirname(processed_data_path), recursive = TRUE, showWarnings = FALSE)
+out_dir <- dirname(processed_data_path)
+dir.create(out_dir, recursive = TRUE, showWarnings = TRUE)
+if (!dir.exists(out_dir)) {
+  stop(sprintf(
+    "Could not create output directory '%s' (resolved to '%s') from working directory '%s'.\n  Check write permissions, or that the parent path exists / is spelled correctly.",
+    out_dir, file.path(getwd(), out_dir), getwd()
+  ))
+}
 
 ## ------------------------------------------------------------------------
 ## 1. LOAD
@@ -122,36 +127,11 @@ if (length(categorical_cols) > 0) {
 }
 
 ## ------------------------------------------------------------------------
-## 4. OUTLIER-ROBUST RESCALING TO [0, 1]
-## ------------------------------------------------------------------------
-# For each predictor column: shift to start at 0, divide by the
-# `outlier_quantile`-th percentile (so extreme outliers are capped at 1
-# rather than compressing the rest of the distribution).
-
-rescale_column <- function(x, q = outlier_quantile) {
-  x <- as.numeric(x)
-  x <- x - min(x, na.rm = TRUE)
-  q_val <- quantile(x, probs = q, na.rm = TRUE)
-  if (q_val > 0) {
-    x <- x / q_val
-  }
-  x <- sapply(x, function(v) min(1, v))
-  x
-}
-
-predictor_cols <- setdiff(colnames(data_clean), target_col)
-
-data_scaled <- data_clean
-for (col in predictor_cols) {
-  data_scaled[[col]] <- rescale_column(data_scaled[[col]])
-}
-
-## ------------------------------------------------------------------------
-## 5. TARGET VARIABLE
+## 4. TARGET VARIABLE -- validate/encode BEFORE reordering & scaling
 ## ------------------------------------------------------------------------
 
 if (target_is_binary) {
-  tgt <- data_scaled[[target_col]]
+  tgt <- data_clean[[target_col]]
   if (is.character(tgt)) tgt <- factor(tgt)
   if (is.factor(tgt)) {
     if (nlevels(tgt) != 2) {
@@ -170,13 +150,32 @@ if (target_is_binary) {
       ))
     }
   }
-  data_scaled[[target_col]] <- tgt
+  data_clean[[target_col]] <- tgt
 } else {
   cat("\ntarget_is_binary = FALSE -- leaving target column as-is (not rescaled).\n")
 }
 
 ## ------------------------------------------------------------------------
-## 6. SANITY CHECKS
+## 5. REORDER COLUMNS -- RBBR requires the target variable in the LAST column
+## ------------------------------------------------------------------------
+
+predictor_cols <- setdiff(colnames(data_clean), target_col)
+data_clean <- data_clean[, c(predictor_cols, target_col)]
+
+## ------------------------------------------------------------------------
+## 6. RESCALE PREDICTORS TO [0, 1] VIA RBBR::rbbr_scaling()
+## ------------------------------------------------------------------------
+# rbbr_scaling() rescales every predictor column to the [0,1] interval
+# (outlier-robust: extreme values are capped rather than compressing the
+# rest of the distribution) and leaves the last (target) column untouched.
+# Using the package's own scaling function keeps preprocessing consistent
+# with how RBBR expects its inputs, and with how rbbr_train()/rbbr_predictor()
+# were validated.
+
+data_scaled <- rbbr_scaling(data_clean)
+
+## ------------------------------------------------------------------------
+## 7. SANITY CHECKS
 ## ------------------------------------------------------------------------
 
 predictor_range <- range(as.matrix(data_scaled[, predictor_cols]), na.rm = TRUE)
@@ -184,13 +183,14 @@ cat(sprintf("\nPredictor value range after scaling: [%.4f, %.4f]\n",
             predictor_range[1], predictor_range[2]))
 
 if (predictor_range[1] < 0 || predictor_range[2] > 1) {
-  warning("Some predictor values fall outside [0, 1] -- check rescale_column logic.")
+  warning("Some predictor values fall outside [0, 1] -- check rbbr_scaling() output.")
 }
 
 cat("Final cleaned dataset dimensions:", nrow(data_scaled), "rows x", ncol(data_scaled), "columns\n")
+cat("Target column '", target_col, "' is now the last column, as required by RBBR.\n", sep = "")
 
 ## ------------------------------------------------------------------------
-## 7. WRITE OUTPUT
+## 8. WRITE OUTPUT
 ## ------------------------------------------------------------------------
 
 write_csv(data_scaled, processed_data_path)

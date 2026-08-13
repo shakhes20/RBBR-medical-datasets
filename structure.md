@@ -3,49 +3,42 @@
 ```
 RBBR-medical-datasets/
 ├── README.md
-├── LICENSE
-├── structure.md                 <- this file
+├── LICENSE                          MIT (code). Dataset licenses are separate -- see data/data_sources.md
+├── structure.md                     this file
 ├── .gitignore
+│
 ├── data/
-│   ├── data_sources.md          <- dataset descriptions, links, licenses
-│   ├── raw/                     <- downloaded/uploaded raw CSVs (gitignored)
-│   └── processed/                <- cleaned .rds files (gitignored; regenerate via scripts/01)
-├── scripts/
-│   ├── 00_utils.R                <- shared helpers (sourced by 01-04)
-│   ├── 01_preprocessing.R        <- load, clean, encode, scale all 6 datasets
-│   ├── 02_train_model.R          <- RBBR training, 5-fold CV
-│   ├── 03_evaluate_results.R     <- metrics + comparison to paper's Table 2/3
-│   └── 04_generate_figures.R     <- ROC/PR curves, R^2 comparison plot
+│   ├── data_sources.md              links, sample/feature counts, and license terms for all 6 datasets
+│   └── raw/
+│       └── README.md                raw CSVs are not bundled (license caveats vary by dataset) -- place downloaded files here
+│
+├── scripts/                         reusable single-dataset pipeline template (config-driven, relative paths)
+│   ├── 01_preprocessing.R           clean + RBBR::rbbr_scaling() one raw dataset -> a model-ready CSV
+│   ├── 02_train_model.R             5-fold CV training via RBBR::rbbr_train(), saves per-fold models + rules
+│   └── 03_evaluate_results.R        per-fold held-out metrics (accuracy, AUC, AUPRC, kappa) via RBBR::rbbr_predictor()
+│
+├── examples/                        two concrete, executed applications with real, checked-in results
+│   ├── lung_cancer_prediction_example.R       binary Lung Cancer Prediction dataset (n=59)
+│   ├── lung_cancer_prediction_RESULTS.md      write-up: rules, ROC/AUC, comparison to the paper's Table 2 rule set
+│   ├── lung_cancer_three_level_example.R      three-level Lung Cancer Risk dataset (n=1000), one-vs-rest RBBR
+│   └── lung_cancer_three_level_RESULTS.md     write-up: rules per class, confusion matrix, inference
+│
 └── results/
-    ├── tables/                   <- CSV outputs (metrics, rule sets, benchmarks)
-    └── figures/                  <- PNG figures
+    ├── lung_cancer_prediction_example/
+    │   ├── rules.csv                 inferred Boolean rules, ranked by BIC
+    │   ├── test_predictions.csv      held-out predictions
+    │   ├── summary_metrics.csv       accuracy / AUC / AUPRC
+    │   └── roc_curve.png
+    └── lung_cancer_three_level_example/
+        └── confusion_matrix.png
 ```
 
-## Data flow
+## Scope note
 
-```
-data/raw/*.csv or auto-download
-        |
-        v
-scripts/01_preprocessing.R  --> data/processed/<dataset>.rds
-                                 data/processed/all_datasets.rds
-                                 results/tables/preprocessing_summary.csv
-        |
-        v
-scripts/02_train_model.R    --> data/processed/trained_models.rds
-                                 data/processed/fold_predictions.rds
-        |
-        v
-scripts/03_evaluate_results.R --> results/tables/metrics_by_dataset.csv
-                                   results/tables/best_rule_sets.csv
-                                   results/tables/table3_benchmark_comparison.csv
-                                   data/processed/roc_pr_data.rds
-        |
-        v
-scripts/04_generate_figures.R --> results/figures/roc_curves_all_datasets.png
-                                   results/figures/pr_curves_all_datasets.png
-                                   results/figures/r2_comparison_reproduced_vs_paper.png
-```
-
-Each script is idempotent and can be re-run independently as long as its
-upstream `.rds` inputs exist in `data/processed/`.
+`scripts/01-03` are a **reusable single-dataset template** -- point the
+config block at any one of the six datasets and run the pipeline. They
+have not (yet) been run as a batch across all six datasets, and this repo
+does not claim to reproduce every table/figure in the paper. The two
+`examples/` are the verified, executed content: each has a real held-out
+test run, checked-in results, and an explicit discussion of how it relates
+to (or differs from) the paper.

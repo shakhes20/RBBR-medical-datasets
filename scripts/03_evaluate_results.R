@@ -1,237 +1,201 @@
-# ============================================================================
+#############################################################################
 # 03_evaluate_results.R
 #
-# Computes evaluation metrics from the RBBR models/predictions produced by
-# 02_train_model.R, and compares them against the paper's reported results:
-#
-#   Table 2 (R^2, BIC of the best Boolean rule set per dataset)
-#   Table 3 (5-fold CV ACC / AUROC / Rule Number / Rule Length, benchmarked
-#            against DeepRED, REM-D, ECLAIRE, for Lung Cancer Prediction and
-#            Diagnostic Breast Cancer only)
-#   Fig. 3  (ROC / PR curves across 5 binary-target datasets)
-#
-# Outputs (all under results/tables/):
-#   - metrics_by_dataset.csv       : ACC, AUROC, precision, sensitivity,
-#                                     specificity, F1 (mean +/- SD over folds)
-#   - best_rule_sets.csv           : top rule set's R^2 and BIC per dataset,
-#                                     compared to paper's Table 2 values
-#   - table3_benchmark_comparison.csv : RBBR reproduced ACC/AUROC/RN/RL vs.
-#                                        paper's Table 3 values (Lung Cancer
-#                                        Prediction, Diagnostic Breast Cancer)
-#   - confusion_matrices.rds       : per-dataset aggregate confusion matrix
+# Purpose:
+#   Load the per-fold RBBR models trained by 02_train_model.R, predict on
+#   each fold's held-out test set with rbbr_predictor(), and compute
+#   standard classification metrics (accuracy, AUC, AUPRC, Cohen's kappa)
+#   -- both per fold and averaged across folds. Also reports how
+#   performance changes as more top-BIC rules are ensembled together
+#   (num_top_rules = 1, 2, 3, ...).
 #
 # Usage:
-#   source("scripts/02_train_model.R")   # if not already run
-#   source("scripts/03_evaluate_results.R")
-# ============================================================================
+#   1. Run 01_preprocessing.R and 02_train_model.R first.
+#   2. Edit the CONFIG section only.
+#   3. Run: Rscript scripts/03_evaluate_results.R
+#############################################################################
 
-source("scripts/00_utils.R")
-ensure_dirs()
+## ------------------------------------------------------------------------
+## CONFIG -- edit this section only
+## ------------------------------------------------------------------------
 
-req_files <- c("trained_models.rds", "fold_predictions.rds")
-for (f in req_files) {
-  if (!file.exists(file.path(PROCESSED_DIR, f))) {
-    stop(sprintf("Run scripts/02_train_model.R first to produce %s", file.path(PROCESSED_DIR, f)))
-  }
+# Path to the same processed dataset used in 02_train_model.R
+processed_data_path <- "data/processed/dataset1_clean.csv"
+
+# Must match dataset_name / model_output_dir used in 02_train_model.R
+dataset_name <- "dataset1"
+model_output_dir <- "results/models"
+
+# Where the evaluation summary (CSV) and plot (PDF) are written
+eval_output_dir <- "results/evaluation"
+
+# Cross-validation setup (must match 02_train_model.R)
+num_folds <- 5
+
+# How many top-BIC rules to test ensembling over, e.g. 1:5 tries
+# num_top_rules = 1, 2, 3, 4, 5 and reports accuracy/AUC for each
+num_top_rules_range <- 1:5
+
+# Classification threshold applied to rbbr_predictor() probabilities
+classification_threshold <- 0.5
+
+# RBBR prediction hyperparameters (should match training slope)
+rbbr_slope <- 10
+rbbr_num_cores <- NA
+rbbr_verbose <- FALSE
+
+## ------------------------------------------------------------------------
+## SETUP
+## ------------------------------------------------------------------------
+
+required_pkgs <- c("RBBR", "readr", "PRROC", "ROCR", "irr", "ggplot2")
+for (pkg in required_pkgs) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
 }
-trained_models   <- readRDS(file.path(PROCESSED_DIR, "trained_models.rds"))
-fold_predictions <- readRDS(file.path(PROCESSED_DIR, "fold_predictions.rds"))
 
-# ---- Paper's reported values for comparison (transcribed from Table 2,
-# Table 3, and Table 1 of Eskandarian & Malekpour, 2026) -------------------
+suppressPackageStartupMessages({
+  library(RBBR)
+  library(readr)
+  library(PRROC)
+  library(ROCR)
+  library(irr)
+  library(ggplot2)
+})
 
-PAPER_TABLE2 <- data.frame(
-  dataset_key = c("lung_cancer_binary", "lung_cancer_3level", "wisconsin_bc",
-                   "diagnostic_bc", "heart_failure", "diabetes_risk"),
-  paper_r2  = c(0.92, 0.87, 0.87, 0.88, 0.55, 0.65),
-  paper_bic = c(-207, -3806, -2425, -2449, -1541, -1259),
-  stringsAsFactors = FALSE
-)
+dir.create(eval_output_dir, recursive = TRUE, showWarnings = TRUE)
+if (!dir.exists(eval_output_dir)) {
+  stop(sprintf(
+    "Could not create eval_output_dir '%s' (resolved to '%s') from working directory '%s'.\n  Check write permissions, or that the parent path exists / is spelled correctly.",
+    eval_output_dir, file.path(getwd(), eval_output_dir), getwd()
+  ))
+}
 
-PAPER_TABLE3 <- data.frame(
-  dataset_key = c("lung_cancer_binary", "lung_cancer_binary", "lung_cancer_binary", "lung_cancer_binary",
-                   "diagnostic_bc", "diagnostic_bc", "diagnostic_bc", "diagnostic_bc"),
-  method = c("DeepRED", "REM-D", "ECLAIRE", "RBBR",
-             "DeepRED", "REM-D", "ECLAIRE", "RBBR"),
-  paper_acc_mean  = c(59.5, 59.5, 93.2, 98.3,  91.4, 91.4, 94.4, 96.5),
-  paper_acc_sd    = c(17.4, 17.4, 3.4,  3.7,   1.5,  1.5,  2.5,  2.1),
-  paper_auroc_mean = c(59.6, 59.6, 93.6, 98.0, 89.9, 90.0, 93.9, 95.9),
-  paper_auroc_sd   = c(17.1, 17.1, 3.2,  4.5,  2.2,  2.0,  2.7,  2.3),
-  paper_rn_mean = c(2.0, 2.0, 3.6, 3.2,   2.0, 2.0, 32.8, 4.6),
-  paper_rn_sd   = c(0.0, 0.0, 1.86, 0.45, 0.0, 0.0, 12.73, 0.55),
-  paper_rl_mean = c(0.0, 0.0, 1.18, 2.2,  1.0, 1.0, 2.13, 3.0),
-  paper_rl_sd   = c(0.0, 0.0, 0.23, 0.447, 0.0, 0.0, 0.27, 0.0),
-  stringsAsFactors = FALSE
-)
+## ------------------------------------------------------------------------
+## 1. LOAD DATA
+## ------------------------------------------------------------------------
 
-# ============================================================================
-# 1. Per-fold classification metrics -> mean +/- SD per dataset
-# ============================================================================
-log_step("Computing per-fold classification metrics...")
+data_all <- as.data.frame(read_csv(processed_data_path, show_col_types = FALSE))
+target_col_index <- ncol(data_all)
 
-metrics_rows <- list()
-roc_data_list <- list()  # for 04_generate_figures.R
-confusion_list <- list()
+## ------------------------------------------------------------------------
+## 2. HELPER: compute metrics from predicted probabilities + true labels
+## ------------------------------------------------------------------------
 
-for (key in names(fold_predictions)) {
-  preds <- fold_predictions[[key]]
-  if (is.null(preds) || nrow(preds) == 0) {
-    warning(sprintf("[%s] No fold predictions available; skipping metrics.", key))
+compute_metrics <- function(prob, labels, threshold = classification_threshold) {
+  pred_class <- ifelse(prob >= threshold, 1, 0)
+
+  auc_val <- tryCatch({
+    roc.curve(scores.class0 = prob, weights.class0 = labels)$auc
+  }, error = function(e) NA)
+
+  auprc_val <- tryCatch({
+    pr.curve(scores.class0 = prob, weights.class0 = labels)$auc.davis.goadrich
+  }, error = function(e) NA)
+
+  accuracy_val <- mean(pred_class == labels)
+
+  kappa_val <- tryCatch({
+    irr::kappa2(cbind(pred_class, labels))$value
+  }, error = function(e) NA)
+
+  data.frame(accuracy = accuracy_val, auc = auc_val, auprc = auprc_val, kappa = kappa_val)
+}
+
+## ------------------------------------------------------------------------
+## 3. EVALUATE EACH FOLD ACROSS num_top_rules_range
+## ------------------------------------------------------------------------
+
+all_results <- data.frame()
+
+for (cv_index in seq_len(num_folds)) {
+
+  model_path <- file.path(model_output_dir, sprintf("%s_fold%d_model.rds", dataset_name, cv_index))
+  if (!file.exists(model_path)) {
+    warning(sprintf("Missing model file for fold %d: %s -- skipping.", cv_index, model_path))
     next
   }
 
-  is_binary_target <- all(preds$y_true %in% c(0, 1)) &&
-    length(unique(preds$y_true)) == 2
+  fold_obj <- readRDS(model_path)
+  trained_model <- fold_obj$trained_model
+  test_indices  <- fold_obj$test_indices
 
-  if (!is_binary_target) {
-    # 3-level lung cancer: report R^2-style fit and MAE instead of
-    # classification metrics, since the target is ordinal/continuous
-    # (see rbbr_predictor() documentation: continuous target -> predicted
-    # value, not a probability).
-    ss_res <- sum((preds$y_true - preds$y_pred)^2)
-    ss_tot <- sum((preds$y_true - mean(preds$y_true))^2)
-    r2_cv  <- 1 - ss_res / ss_tot
-    mae_cv <- mean(abs(preds$y_true - preds$y_pred))
-    metrics_rows[[key]] <- data.frame(
-      dataset_key = key, name = DATASET_INFO[[key]]$name,
-      metric_type = "regression (ordinal target)",
-      accuracy_mean = NA, accuracy_sd = NA,
-      auroc_mean = NA, auroc_sd = NA,
-      r2_cv = r2_cv, mae_cv = mae_cv,
-      stringsAsFactors = FALSE
-    )
-    next
+  test_data   <- data_all[test_indices, ]
+  test_data_x <- test_data[, -target_col_index, drop = FALSE]
+  labels      <- test_data[[target_col_index]]
+
+  cat(sprintf("\n===== Fold %d / %d (n_test = %d) =====\n", cv_index, num_folds, length(labels)))
+
+  for (top_n in num_top_rules_range) {
+
+    prob <- tryCatch({
+      rbbr_predictor(
+        trained_model,
+        test_data_x,
+        num_top_rules = top_n,
+        slope         = rbbr_slope,
+        num_cores     = rbbr_num_cores,
+        verbose       = rbbr_verbose
+      )
+    }, error = function(e) {
+      warning(sprintf("Fold %d, num_top_rules=%d failed: %s", cv_index, top_n, conditionMessage(e)))
+      rep(NA_real_, length(labels))
+    })
+
+    metrics <- compute_metrics(prob, labels)
+    metrics$fold <- cv_index
+    metrics$num_top_rules <- top_n
+    metrics$run_time_secs <- fold_obj$run_time_secs
+
+    all_results <- rbind(all_results, metrics)
+    cat(sprintf("  top_rules=%d  acc=%.3f  auc=%.3f  auprc=%.3f  kappa=%.3f\n",
+                top_n, metrics$accuracy, metrics$auc, metrics$auprc, metrics$kappa))
   }
-
-  per_fold <- do.call(rbind, lapply(split(preds, preds$fold), function(fp) {
-    m <- binary_metrics(fp$y_true, fp$y_pred)
-    auc <- compute_auroc(fp$y_true, fp$y_pred)
-    data.frame(accuracy = m$accuracy, auroc = auc,
-               precision = m$precision, sensitivity = m$sensitivity,
-               specificity = m$specificity, f1 = m$f1)
-  }))
-
-  metrics_rows[[key]] <- data.frame(
-    dataset_key = key, name = DATASET_INFO[[key]]$name,
-    metric_type = "classification",
-    accuracy_mean = mean(per_fold$accuracy, na.rm = TRUE) * 100,
-    accuracy_sd   = stats::sd(per_fold$accuracy, na.rm = TRUE) * 100,
-    auroc_mean    = mean(per_fold$auroc, na.rm = TRUE) * 100,
-    auroc_sd      = stats::sd(per_fold$auroc, na.rm = TRUE) * 100,
-    r2_cv = NA, mae_cv = NA,
-    stringsAsFactors = FALSE
-  )
-
-  # Pooled ROC/PR curve (all folds' predictions combined) for Fig. 3-style plots
-  roc_data_list[[key]] <- list(
-    roc = roc_curve(preds$y_true, preds$y_pred),
-    pr  = pr_curve(preds$y_true, preds$y_pred)
-  )
-
-  agg_pred <- as.numeric(preds$y_pred >= 0.5)
-  confusion_list[[key]] <- table(
-    Actual = factor(preds$y_true, levels = c(0, 1)),
-    Predicted = factor(agg_pred, levels = c(0, 1))
-  )
 }
 
-metrics_df <- do.call(rbind, metrics_rows)
-write.csv(metrics_df, file.path(TABLES_DIR, "metrics_by_dataset.csv"), row.names = FALSE)
-saveRDS(roc_data_list, file.path(PROCESSED_DIR, "roc_pr_data.rds"))
-saveRDS(confusion_list, file.path(TABLES_DIR, "confusion_matrices.rds"))
+## ------------------------------------------------------------------------
+## 4. SAVE PER-FOLD RESULTS
+## ------------------------------------------------------------------------
 
-log_step(sprintf("Saved %s", file.path(TABLES_DIR, "metrics_by_dataset.csv")))
+results_path <- file.path(eval_output_dir, paste0(dataset_name, "_fold_metrics.csv"))
+write_csv(all_results, results_path)
+cat("\nSaved per-fold metrics to:", results_path, "\n")
 
+## ------------------------------------------------------------------------
+## 5. SUMMARY: mean +/- sd across folds, per num_top_rules
+## ------------------------------------------------------------------------
 
-# ============================================================================
-# 2. Best Boolean rule set per dataset: R^2 / BIC, vs. paper's Table 2
-# ============================================================================
-log_step("Extracting best Boolean rule sets (R^2, BIC) and comparing to Table 2...")
-
-best_rules_rows <- list()
-for (key in names(trained_models)) {
-  model <- trained_models[[key]]
-  if (is.null(model) || is.null(model$boolean_rules) || nrow(model$boolean_rules) == 0) {
-    next
-  }
-  # boolean_rules is sorted by BIC per RBBR's documented output (see README
-  # example: "head(trained_model$boolean_rules)" shows ascending BIC / best
-  # model first).
-  top_rule <- model$boolean_rules[1, ]
-  best_rules_rows[[key]] <- data.frame(
-    dataset_key = key,
-    name = DATASET_INFO[[key]]$name,
-    boolean_rule = top_rule$Boolean_Rule,
-    reproduced_r2  = as.numeric(top_rule$R2),
-    reproduced_bic = as.numeric(top_rule$BIC),
-    stringsAsFactors = FALSE
-  )
-}
-best_rules_df <- do.call(rbind, best_rules_rows)
-
-if (!is.null(best_rules_df)) {
-  comparison_df <- merge(best_rules_df, PAPER_TABLE2, by = "dataset_key", all.x = TRUE)
-  comparison_df$r2_diff  <- comparison_df$reproduced_r2  - comparison_df$paper_r2
-  comparison_df$bic_diff <- comparison_df$reproduced_bic - comparison_df$paper_bic
-  write.csv(comparison_df, file.path(TABLES_DIR, "best_rule_sets.csv"), row.names = FALSE)
-  log_step(sprintf("Saved %s", file.path(TABLES_DIR, "best_rule_sets.csv")))
-} else {
-  warning("No trained models produced Boolean rule sets; check 02_train_model.R output.")
-}
-
-
-# ============================================================================
-# 3. Table 3 style benchmark comparison (Lung Cancer Prediction, Diagnostic
-#    Breast Cancer) -- RBBR's reproduced ACC/AUROC vs. paper's reported
-#    values for RBBR (this script does not reproduce DeepRED/REM-D/ECLAIRE,
-#    which are separate external tools not implemented here; their paper
-#    values are included for reference only).
-# ============================================================================
-log_step("Building Table 3-style benchmark comparison for RBBR...")
-
-table3_keys <- c("lung_cancer_binary", "diagnostic_bc")
-rbbr_repro <- metrics_df[metrics_df$dataset_key %in% table3_keys &
-                            metrics_df$metric_type == "classification", ]
-
-# Rule Number (RN) / Rule Length (RL): approximate using the trained model's
-# retained positive-coefficient rules from the full-data fit (Table 2 rule
-# sets), consistent with the paper's definition ("RN ... number of Boolean
-# rules with positive coefficients ... RL ... number of features in a rule").
-rn_rl_rows <- list()
-for (key in table3_keys) {
-  model <- trained_models[[key]]
-  if (is.null(model) || is.null(model$boolean_rules)) next
-  top_rule <- model$boolean_rules[1, ]
-  # Boolean_Rule string contains one or more OR-combined conjunctions;
-  # count occurrences of "AND"/"∧"-joined clauses as a proxy for RN, and
-  # count feature tokens per clause as a proxy for RL. This is a heuristic
-  # reconstruction from the printed rule string -- for an authoritative
-  # RN/RL, use the weight_threshold-filtered coefficient vector directly
-  # from the RBBR model object if / when the package exposes it.
-  rule_str <- as.character(top_rule$Boolean_Rule)
-  rn_approx <- lengths(regmatches(rule_str, gregexpr("\\[", rule_str)))
-  rl_approx <- mean(lengths(regmatches(rule_str, gregexpr("[A-Za-z_.]+", rule_str))) / max(rn_approx, 1))
-  rn_rl_rows[[key]] <- data.frame(dataset_key = key, rn_reproduced = rn_approx, rl_reproduced = rl_approx)
-}
-rn_rl_df <- do.call(rbind, rn_rl_rows)
-
-table3_repro <- merge(rbbr_repro, rn_rl_df, by = "dataset_key", all.x = TRUE)
-table3_repro$method <- "RBBR (reproduced)"
-
-table3_paper_rbbr_only <- PAPER_TABLE3[PAPER_TABLE3$method == "RBBR", ]
-
-table3_comparison <- merge(
-  table3_repro[, c("dataset_key", "accuracy_mean", "accuracy_sd", "auroc_mean", "auroc_sd",
-                    "rn_reproduced", "rl_reproduced")],
-  table3_paper_rbbr_only[, c("dataset_key", "paper_acc_mean", "paper_acc_sd",
-                              "paper_auroc_mean", "paper_auroc_sd", "paper_rn_mean", "paper_rl_mean")],
-  by = "dataset_key", all.x = TRUE
+summary_stats <- aggregate(
+  cbind(accuracy, auc, auprc, kappa) ~ num_top_rules,
+  data = all_results,
+  FUN = function(x) c(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE))
 )
-write.csv(table3_comparison, file.path(TABLES_DIR, "table3_benchmark_comparison.csv"), row.names = FALSE)
-write.csv(PAPER_TABLE3, file.path(TABLES_DIR, "table3_paper_reference.csv"), row.names = FALSE)
 
-log_step(sprintf("Saved %s and %s",
-                  file.path(TABLES_DIR, "table3_benchmark_comparison.csv"),
-                  file.path(TABLES_DIR, "table3_paper_reference.csv")))
+summary_path <- file.path(eval_output_dir, paste0(dataset_name, "_summary_metrics.csv"))
+# Flatten the matrix columns produced by aggregate() before writing
+summary_flat <- do.call(data.frame, summary_stats)
+write_csv(summary_flat, summary_path)
 
-log_step("Evaluation complete. Review results/tables/ for full comparison against the paper.")
+cat("\nMean performance across folds by num_top_rules:\n")
+print(summary_flat)
+cat("\nSaved summary metrics to:", summary_path, "\n")
+
+## ------------------------------------------------------------------------
+## 6. PLOT: accuracy & AUC vs. number of ensembled top rules
+## ------------------------------------------------------------------------
+
+plot_data <- all_results
+plot_data$num_top_rules <- factor(plot_data$num_top_rules)
+
+p <- ggplot(plot_data, aes(x = num_top_rules, y = auc)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.6) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = paste0(dataset_name, ": AUC across CV folds by number of ensembled rules"),
+    x = "Number of top-BIC rules ensembled",
+    y = "AUC"
+  ) +
+  theme_minimal()
+
+plot_path <- file.path(eval_output_dir, paste0(dataset_name, "_auc_by_num_rules.pdf"))
+ggsave(plot_path, plot = p, width = 6, height = 4)
+cat("Saved evaluation plot to:", plot_path, "\n")

@@ -65,7 +65,7 @@ Full runnable script: [`lung_cancer_three_level_example.R`](./lung_cancer_three_
 
 **Confusion matrix (200 held-out patients):**
 
-![Confusion matrix](../results/lung_cancer_example/confusion_matrix.png)
+![Confusion matrix](../results/lung_cancer_three_level_example/confusion_matrix.png)
 
 | True \ Predicted | Low | Medium | High |
 |---|---|---|---|
@@ -164,6 +164,6 @@ package — not a reproduction of the paper's results.
 Rscript examples/lung_cancer_three_level_example.R
 ```
 
-Outputs are written to `results/lung_cancer_example/`:
+Outputs are written to `results/lung_cancer_three_level_example/`:
 `model_<class>_vs_rest.rds`, `rules_<class>_vs_rest.csv`,
 `test_predictions.csv`, `summary_metrics.csv`, `confusion_matrix.pdf/.png`.

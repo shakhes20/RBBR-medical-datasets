@@ -39,7 +39,7 @@ target_col <- "Level"
 class_labels <- c("Low", "Medium", "High")
 
 # Directory for saved models, rules, and evaluation output
-output_dir <- "results/lung_cancer_example"
+output_dir <- "results/lung_cancer_three_level_example"
 
 # Train/test split and reproducibility
 test_fraction <- 0.2
