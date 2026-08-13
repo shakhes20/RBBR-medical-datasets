@@ -32,6 +32,7 @@ RBBR-medical-datasets/
     │   ├── summary_metrics.csv       accuracy / AUC / AUPRC
     │   └── roc_curve.png
     └── lung_cancer_three_level_example/
+    │   ├── rules.csv (3 sheets)
         └── confusion_matrix.png
 ```
 
