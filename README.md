@@ -27,7 +27,7 @@ Six publicly available medical datasets are documented in
 [`data/data_sources.md`](./data/data_sources.md) (direct links, feature
 descriptions, license terms for each):
 
-1. **Lung Cancer Dataset v1** (Kaggle) — 59 samples, 4 features, binary — see `examples/`
+1. **Lung Cancer Dataset (Version 1)** (Kaggle) — 59 samples, 4 features, binary — see `examples/`
 2. **Three-level Lung Cancer** (Kaggle) — 1,000 samples, 23 features, 3-class — see `examples/`
 3. **Wisconsin Breast Cancer** (UCI) — 699 samples, 9 features, binary
 4. **Diagnostic Breast Cancer** (UCI) — 569 samples, 30 features, binary
