@@ -1,0 +1,26 @@
+# Raw downloaded/uploaded datasets (large, redistributable per original license only)
+data/raw/*.csv
+data/raw/*.zip
+data/raw/*.data
+
+# Exception: these two small example datasets are bundled directly in the
+# repo for one-click reproducibility of the worked examples in examples/.
+# See data/raw/README.md for their source/license references.
+!data/raw/lung_cancer_examples.csv
+!data/raw/cancer_patient_data_sets.csv
+
+# Processed intermediate R objects (regenerable via scripts/01-03)
+data/processed/*.rds
+
+# R session/history files
+.Rhistory
+.RData
+.Rproj.user/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep folder structure via .gitkeep even though contents are ignored
+!data/raw/.gitkeep
+!data/processed/.gitkeep
