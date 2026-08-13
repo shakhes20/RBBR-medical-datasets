@@ -9,9 +9,6 @@ data/raw/*.data
 !data/raw/lung_cancer_examples.csv
 !data/raw/cancer_patient_data_sets.csv
 
-# Processed intermediate R objects (regenerable via scripts/01-03)
-data/processed/*.rds
-
 # R session/history files
 .Rhistory
 .RData
