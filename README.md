@@ -9,6 +9,26 @@ Mohammad Eskandarian, Seyed Amir Malekpour (bioRxiv, 2026)
 Link: <https://www.biorxiv.org/content/10.64898/2026.05.14.725084v1>
 DOI: [10.64898/2026.05.14.725084](https://doi.org/10.64898/2026.05.14.725084)
 
+## Authorship and roles
+
+This repository — the reusable preprocessing/training/evaluation pipeline
+in `scripts/`, and the two worked examples with their independently-run,
+checked-in results in `examples/` and `results/` — was designed and built
+by **Mohammad Eskandarian** (TU Bergakademie Freiberg), as the data
+management and reproducibility workflow accompanying our paper. This
+matches the paper's own Author Contributions statement: *"M.E. performed
+the data curation, formal analysis, and validation. M.E. also contributed
+to the visualization, writing of the original draft, and review and
+editing of the manuscript."*
+
+The RBBR method itself and its general-purpose R package (the modeling
+engine this workflow depends on, via `RBBR::rbbr_scaling()`,
+`RBBR::rbbr_train()`, and `RBBR::rbbr_predictor()`) were developed
+separately by my co-author **Dr. Seyed Amir Malekpour** (CompBioIPM/RBBR,
+CRAN), who *"contributed to the conceptualization and methodology"* of the
+paper. The package is used here as an external dependency, not authored in
+this repository.
+
 ## Method
 
 This work uses the RBBR method and its R package implementation, developed by
@@ -27,7 +47,7 @@ Six publicly available medical datasets are documented in
 [`data/data_sources.md`](./data/data_sources.md) (direct links, feature
 descriptions, license terms for each):
 
-1. **Lung Cancer Dataset (Version 1)** (Kaggle) — 59 samples, 4 features, binary — see `examples/`
+1. **Lung Cancer Dataset v1** (Kaggle) — 59 samples, 4 features, binary — see `examples/`
 2. **Three-level Lung Cancer** (Kaggle) — 1,000 samples, 23 features, 3-class — see `examples/`
 3. **Wisconsin Breast Cancer** (UCI) — 699 samples, 9 features, binary
 4. **Diagnostic Breast Cancer** (UCI) — 569 samples, 30 features, binary

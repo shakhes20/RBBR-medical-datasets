@@ -35,6 +35,11 @@ RBBR-medical-datasets/
 
 ## Scope note
 
+This repository (pipeline code, worked examples, and their results) was
+built by Mohammad Eskandarian; the RBBR R package it depends on was built
+separately by Dr. Seyed Amir Malekpour — see "Authorship and roles" in the
+top-level `README.md` for the full attribution.
+
 `scripts/01-03` are a **reusable single-dataset template** -- point the
 config block at any one of the six datasets and run the pipeline. They
 have not (yet) been run as a batch across all six datasets, and this repo
