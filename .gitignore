@@ -20,7 +20,3 @@ data/processed/*.rds
 # OS files
 .DS_Store
 Thumbs.db
-
-# Keep folder structure via .gitkeep even though contents are ignored
-!data/raw/.gitkeep
-!data/processed/.gitkeep
