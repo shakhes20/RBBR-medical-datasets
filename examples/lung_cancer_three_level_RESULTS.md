@@ -11,8 +11,7 @@ Multi-class disease risk stratification is common in clinical practice — for
 example, classifying patients into low, moderate, or high lung cancer risk
 rather than a simple positive/negative call — but most interpretable-rule
 methods are built around binary outcomes. This example demonstrates a
-one-vs-rest application of **RBBR (Regression-Based Boolean Rule)**, the
-published R package accompanying Eskandarian & Malekpour (2026), to a
+one-vs-rest application of **RBBR** to a
 1000-patient, 23-feature, three-class lung cancer risk dataset (Low /
 Medium / High). Three independent binary RBBR models — one per class —
 are trained and combined by probability argmax into a single three-class
