@@ -30,11 +30,6 @@ paper. The package is used here as an external dependency, not authored in
 this repository.
 
 ## Method
-
-This work uses the RBBR method and its R package implementation, developed by
-Dr. Seyed Amir Malekpour (CompBioIPM/RBBR), available on CRAN and GitHub:
-<https://github.com/CompBioIPM/RBBR>
-
 RBBR derives clinically interpretable Boolean rules (conjunctions of up to
 three clinical features) from patient data, uses them as inputs to a ridge
 regression model to predict binary or multi-class disease outcomes, and
@@ -64,7 +59,6 @@ place them in `data/raw/` before running `scripts/01_preprocessing.R`
 against them.
 
 ## Contents
-
 - `scripts/01_preprocessing.R` — clean a raw dataset and rescale it via
   `RBBR::rbbr_scaling()`, ready for training. Single-dataset, config-driven:
   point it at one dataset at a time.
@@ -116,13 +110,11 @@ Rscript scripts/03_evaluate_results.R
 Rscript examples/lung_cancer_prediction_example.R
 Rscript examples/lung_cancer_three_level_example.R
 ```
-
 **Before running:** download the relevant raw dataset(s) per
 `data/data_sources.md` and place them in `data/raw/` at the path each
 script's config section expects.
 
 ## Scope
-
 `scripts/01-03` are a reusable **template** for applying RBBR to one
 dataset at a time via `RBBR::rbbr_scaling()` / `rbbr_train()` /
 `rbbr_predictor()` — they have not been run as a batch across all six
@@ -132,9 +124,7 @@ results checked into `results/`. See [`structure.md`](./structure.md) for
 the full layout and scope note.
 
 ## Citation
-
-If you use this workflow, please cite our paper and Dr. Malekpour's RBBR package:
-
+If you use this workflow, please cite our paper:
 ```bibtex
 @article{eskandarian2026rbbr,
   title   = {Interpretable Predictive Modeling for Medical Data Using Boolean Rule-aware Regression},
