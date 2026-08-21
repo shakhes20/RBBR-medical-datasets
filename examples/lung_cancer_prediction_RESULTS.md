@@ -115,16 +115,3 @@ Age–AreaQ–Alcohol interaction highlighted in the original paper as the
 most explanatory and predictive Boolean rule for lung cancer risk, while
 achieving strong held-out discrimination despite the very small sample
 size (n = 59).
-
-## Citation
-
-If you use this example, please cite the RBBR paper:
-
-> Eskandarian, M., & Malekpour, S. A. (2026). *Interpretable Predictive
-> Modeling for Medical Data Using Boolean Rule-aware Regression.* bioRxiv.
-> https://doi.org/10.64898/2026.05.14.725084
-
-and the dataset:
-
-> Dede, Y. *Lung Cancer Dataset.* Kaggle.
-> https://www.kaggle.com/datasets/yusufdede/lung-cancer-dataset
